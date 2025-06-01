@@ -1,150 +1,89 @@
+import os
 from datetime import datetime, time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
 from langdetect import detect
 
+# Отримуємо токен з середовища
+TOKEN = os.getenv("BOT_TOKEN")
+
 # Робочий час
-WORK_START = time(18, 0)
-WORK_END = time(9, 0)
+WORK_START = time(9, 0)
+WORK_END = time(18, 0)
 
 # Відповіді на повідомлення поза робочим часом
 RESPONSES = {
     'pl': "Nasi menedżerowie odpowiedzą na Twoje pytanie w godzinach pracy.\n"
           "09:00 - 18:00 – w tych godzinach nasz zespół jest zawsze dostępny.",
-
     'ru': "Наши менеджеры ответят вам в рабочие часы.\n"
           "09:00 – 18:00 – в это время команда всегда на связи.",
-
     'uk': "Наші менеджери дадуть відповідь у робочий час.\n"
           "09:00 – 18:00 – саме тоді команда на зв'язку.",
-
     'en': "Our managers will get back to you during business hours.\n"
           "09:00 – 18:00 – during this time, our team is always available.",
-
     'default': "We will respond during our business hours: 09:00 – 18:00."
 }
 
 # Відповіді на аварійні ситуації
 ACCIDENT_RESPONSES = {
     'uk': "Зібрали для вас список цілодобових сервісів для допомоги в нічний час, а саме:\n\n"
-          "1. Цілодобовий автомагазин (можна купити будь-яку лампочку чи батарейку):\n"
-          "📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n\n"
-          "2. Цілодобові шиномонтажі в різних районах Варшави:\n"
-          "📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9?g_st=it\n"
-          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6?g_st=it\n"
-          "📍https://maps.app.goo.gl/c1Lxhvf65d61Kzru6?g_st=it\n"
-          "📍https://maps.app.goo.gl/2nzUok591ymrHutW6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "3. Мобільний шиномонтаж (якщо пробили колесо й не можете дістатися до станції самостійно):\n"
-          "📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9?g_st=it\n"
-          "📍https://maps.app.goo.gl/g31X768Dj3a3SR616?g_st=it\n"
-          "📍https://maps.app.goo.gl/qk9pWTVJ9fZa4ALq6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "4. Евакуатор:\n📞 +48 791 323 496 — Канат\n\n"
-          "📃 Ці послуги ви оплачуєте самостійно, обов’язково на фірмову фактуру:\n"
-          "‼️ NIP: 5213954140 ‼️\nOAZIS PARK SP. Z O.O.\n01-242, Warszawa, Aleja Prymasa Tysiąclecia 81a\n\n"
-          "‼️ Компенсація за шиномонтаж — тільки за ремонт шини (якщо шину не можна відновити — платить водій).\n"
-          "Також відшкодування за евакуатор можливе лише у випадку, якщо поломка сталася не з вини водія.\n"
-          "Повернення коштів здійснюється під час найближчого розрахунку і лише за наявності фактури (потрібно надати в офіс). ‼️",
-
-    'ru': "Собрали для вас список круглосуточных сервисов для помощи в ночное время, а именно:\n\n"
-          "1. Круглосуточный автомагазин (купить любую лампочку или батарейку):\n📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n\n"
-          "2. Круглосуточный шиномонтаж в разных районах Варшавы:\n📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9?g_st=it\n"
-          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6?g_st=it\n"
-          "📍https://maps.app.goo.gl/c1Lxhvf65d61Kzru6?g_st=it\n"
-          "📍https://maps.app.goo.gl/2nzUok591ymrHutW6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "3. Мобильный шиномонтаж (если пробили колесо и нет возможности доехать до станции самостоятельно):\n"
-          "📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9?g_st=it\n"
-          "📍https://maps.app.goo.gl/g31X768Dj3a3SR616?g_st=it\n"
-          "📍https://maps.app.goo.gl/qk9pWTVJ9fZa4ALq6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "4. Эвакуатор:\n📞+48 791 323 496 Канат (Kanat)\n\n"
-          "📃Данные услуги вы оплачиваете самостоятельно, обязательно на фактуру фирмы:\n"
-          "‼️NIP: 5213954140‼️\nOAZIS PARK SP. Z O.O.\n01-242, Warszawa, Aleja Prymasa Tysiąclecia 81a\n\n"
-          "‼️Компенсация средств за шиномонтаж только за ремонт колеса (если шину невозможно восстановить, оплачивает водитель).\n"
-          "А также компенсация средств за эвакуатор в том случае, если в поломке нет вины водителя.\n"
-          "Возврат получите при ближайшем расчете и только при наличии фактуры (нужно принести в офис)‼️",
-
-    'pl': "Przygotowaliśmy dla Ciebie listę całodobowych usług, które pomogą Ci w nocy, a mianowicie:\n\n"
-          "1. 24-godzinny  sklep motoryzacyjny (możliwość zakupu dowolnej żarówki lub baterii):\n📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n\n"
-          "2. 24-godzinny montaż opon w różnych rejonach Warszawy:\n📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9?g_st=it\n"
-          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6?g_st=it\n"
-          "📍https://maps.app.goo.gl/c1Lxhvf65d61Kzru6?g_st=it\n"
-          "📍https://maps.app.goo.gl/2nzUok591ymrHutW6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "3. Mobilny montaż opon (jeśli złapałeś gumę i nie masz możliwości samodzielnego dojazdu na stację):\n"
-          "📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9?g_st=it\n"
-          "📍https://maps.app.goo.gl/g31X768Dj3a3SR616?g_st=it\n"
-          "📍https://maps.app.goo.gl/qk9pWTVJ9fZa4ALq6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "4. Laweta:\n📞+48 791 323 496 Kanat\n\n"
-          "📃Za te usługi płacisz samodzielnie, koniecznie na firmowej fakturze:\n"
-          "‼️NIP: 5213954140‼️\nOAZIS PARK SP. Z O.O.\n01-242, Warszawa, Aleja Prymasa Tysiąclecia 81a\n\n"
-          "‼️Rekompensata kosztów za montaż opon jest przyznawana tylko za naprawę koła (jeśli opona nie nadaje się do naprawy, koszty ponosi kierowca).\n"
-          "Ponadto, rekompensata kosztów za holowanie jest przyznawana w przypadku, gdy awaria nie jest z winy kierowcy.\n"
-          "Zwrot otrzymasz przy najbliższym rozliczeniu, i tylko po okazaniu faktury (należy dostarczyć do biura).‼️",
-
-    'en': "We have compiled a list of 24-hour services for assistance at night, namely:\n\n"
-          "1. 24/7 auto store (purchase any bulb or battery):\n📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n\n"
-          "2. 24-hour tire service in different areas Warsaw:\n📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9?g_st=it\n"
-          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6?g_st=it\n"
-          "📍https://maps.app.goo.gl/c1Lxhvf65d61Kzru6?g_st=it\n"
-          "📍https://maps.app.goo.gl/2nzUok591ymrHutW6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "3. Mobile tire service (if you have a flat tire and can't get to the station by yourself):\n"
-          "📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9?g_st=it\n"
-          "📍https://maps.app.goo.gl/g31X768Dj3a3SR616?g_st=it\n"
-          "📍https://maps.app.goo.gl/qk9pWTVJ9fZa4ALq6?g_st=it\n"
-          "📍https://maps.app.goo.gl/qRJkA8amP18A6W5p6?g_st=it\n\n"
-          "4. Tow truck:\n📞+48 791 323 496 Kanat\n\n"
-          "📃You pay for these services yourself, be sure to get invoice of the company:\n"
-          "‼️NIP: 5213954140‼️\nOAZIS PARK SP. Z O.O.\n01-242, Warszawa, Aleja Prymasa Tysiąclecia 81a\n\n"
-          "‼️Compensation for tire fitting costs is provided only for wheel repair (if the tire cannot be repaired, the driver covers the costs).\n"
-          "Additionally, compensation for towing is provided if the breakdown is not the driver's fault.\n"
-          "The refund will be issued during the next settlement, and only upon presenting an invoice (it must be brought to the office).‼️"
+          "1. Цілодобовий автомагазин: 📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n"
+          "2. Цілодобові шиномонтажі: 📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9\n"
+          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6\n"
+          "3. Мобільний шиномонтаж: 📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9\n"
+          "4. Евакуатор: +48 791 323 496 — Канат\n\n"
+          "‼️ Всі послуги оплачуються по фактурі: NIP: 5213954140",
+    'ru': "Собрали для вас список круглосуточных сервисов для помощи:\n\n"
+          "1. Автомагазин: 📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n"
+          "2. Шиномонтаж: 📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9\n"
+          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6\n"
+          "3. Мобильный шиномонтаж: 📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9\n"
+          "4. Эвакуатор: +48 791 323 496 Канат\n\n"
+          "‼️ Оплата по фактуре: NIP: 5213954140",
+    'pl': "Przygotowaliśmy listę całodobowych usług pomocy:\n\n"
+          "1. Sklep: 📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n"
+          "2. Montaż opon: 📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9\n"
+          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6\n"
+          "3. Mobilny serwis: 📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9\n"
+          "4. Laweta: +48 791 323 496 Kanat\n\n"
+          "‼️ Faktura: NIP: 5213954140",
+    'en': "24-hour emergency resources:\n\n"
+          "1. Auto store: 📍https://maps.app.goo.gl/kAJTVjhWVwqp8R9S8\n"
+          "2. Tire service: 📍https://maps.app.goo.gl/ihAP8Mq6JrbfcPNY9\n"
+          "📍https://maps.app.goo.gl/jHscEECMq7oaYX4X6\n"
+          "3. Mobile repair: 📍https://maps.app.goo.gl/iaG17MJkGnd4RzQB9\n"
+          "4. Tow truck: +48 791 323 496 Kanat\n\n"
+          "‼️ Invoice required: NIP: 5213954140"
 }
 
 # Обробник повідомлень
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now().time()
     user_text = update.message.text.lower()
-    print("✉️ Отримано повідомлення:", user_text)
-    print("🗕 Поточний час:", now)
 
-    # Визначаємо мову повідомлення
     try:
         lang = detect(user_text)
-        print("🌐 Визначена мова:", lang)
     except:
         lang = 'default'
 
-    # 🔍 Перевірка на аварійні тригери
+    # 🔍 Триґери для аварій
     accident_keywords = [
-        # Ukrainian
-        "пробив шину", "колесо", "не їде авто", "аварія", "дтп", "аварійна ситуація", "помилка", "чек гібрид", "лампочка", "лампа",
-        # Russian
-        "пробил шину", "машина не едет", "авария", "дтп", "аварийная ситуация", "ошибка", "загорелся чек гибрид", "лампочка", "лампа",
-        # Polish
-        "przebiłem oponę", "koło", "złapałem gumę", "samochód nie jedzie", "nie rusza", "wypadek", "kolizja", "sytuacja awaryjna",
-        "błąd", "kontrolka", "check hybrid", "żarówka", "lampa",
-        # English
-        "flat tire", "punctured a tire", "car won’t move", "car is not driving", "accident", "car crash", "emergency situation",
-        "error", "check hybrid system", "hybrid warning", "bulb", "lamp"
+        "пробив шину", "колесо", "не їде авто", "аварія", "дтп", "аварійна ситуація", "помилка", "чек гібрид", "лампа",
+        "пробил шину", "машина не едет", "авария", "ошибка", "загорелся чек", "лампочка",
+        "przebiłem", "koło", "gumę", "nie jedzie", "wypadek", "awaryjna", "błąd", "żarówka",
+        "flat tire", "punctured", "won’t move", "accident", "emergency", "error", "check hybrid", "bulb", "lamp"
     ]
 
-    if any(trigger in user_text for trigger in accident_keywords):
-        response = ACCIDENT_RESPONSES.get(lang, ACCIDENT_RESPONSES['en'])
-        await update.message.reply_text(response)
+    if any(keyword in user_text for keyword in accident_keywords):
+        await update.message.reply_text(ACCIDENT_RESPONSES.get(lang, ACCIDENT_RESPONSES['pl']))
         return
 
     # Відповідь поза робочим часом
-    if not (WORK_START <= now <= WORK_END):
-        response = RESPONSES.get(lang, RESPONSES['default'])
-        await update.message.reply_text(response)
+    if now < WORK_START or now > WORK_END:
+        await update.message.reply_text(RESPONSES.get(lang, RESPONSES['default']))
 
-# Запуск бота без asyncio.run()
-app = ApplicationBuilder().token("7190316034:AAE5ZRYRX2_QNzoqu4exnvvecksoh2mCplg").build()
+# Запуск бота
+app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.TEXT, handle_message))
 print("✅ Бот працює. Очікує повідомлень у групах...")
 app.run_polling()
